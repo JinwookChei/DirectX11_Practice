@@ -3,14 +3,20 @@
 #define ResolutionWidth 800.0f
 #define	ResolutionHeigh 600.0f
 
-// 01. Init
+// New
+// ID3D11DepthStencilView* g_pDepthStencilView
+// HRESULT InitDepthStencilBuffer()
+// OMSetting -> g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
+// RenderBegin -> g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+// Init
 ID3D11Device* g_pd3dDevice = nullptr;
 ID3D11DeviceContext* g_pImmediateContext = nullptr; // Device Context
 IDXGISwapChain* g_pSwapChain = nullptr; // 스왑 체인
 ID3D11RenderTargetView* g_pRenderTargetView = nullptr; // 렌더 타켓 뷰
+ID3D11DepthStencilView* g_pDepthStencilView = nullptr; // 깊이 스텐실 뷰
 
-
-// 02. BasicShader
+// Render
 ID3D11InputLayout* g_pInputLayout = nullptr;
 ID3D11Buffer* g_pVertexBuffer = nullptr;
 ID3D11Buffer* g_pIndexBuffer = nullptr;
@@ -46,12 +52,12 @@ WORD indices[] = {
 	4, 7, 0, 0, 7, 3, // 아래
 };
 
-
-// 03. RotationMatrix
+// Misc
 float g_fRotaionAngle = 0.0f;
 
+
 // ------------------------- Functions ------------------------------------- //
-// 01. InitD3D
+
 IDXGIAdapter* GetBestAdapter()
 {
 	IDXGIFactory* pFactory = nullptr;
@@ -89,14 +95,8 @@ IDXGIAdapter* GetBestAdapter()
 	return pBestAdapter;
 }
 
-HRESULT InitD3D(HWND hWnd)
+HRESULT InitDeviceAndSwapChain(HWND hWnd, IDXGIAdapter* pBestAdapter)
 {
-	IDXGIAdapter* pBestAdapter = GetBestAdapter();
-	if (nullptr == pBestAdapter)
-	{
-		return E_FAIL;
-	}
-
 	// 스왑 체인 구조체를 초기화 해야 함
 	DXGI_SWAP_CHAIN_DESC sd;
 	memset(&sd, 0x00, sizeof(sd));
@@ -131,14 +131,21 @@ HRESULT InitD3D(HWND hWnd)
 
 	if (FAILED(hr))
 	{
+		DEBUG_BREAK();
 		return hr;
 	}
 
+	return S_OK;
+}
+
+HRESULT InitRenderTargetView()
+{
 	// 백 버퍼의 렌더 타켓 뷰를 얻어와야한다.
 	ID3D11Texture2D* pBackBuffer = nullptr;
-	hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer);
+	HRESULT hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer);
 	if (FAILED(hr))
 	{
+		DEBUG_BREAK();
 		return hr;
 	}
 
@@ -146,41 +153,74 @@ HRESULT InitD3D(HWND hWnd)
 	pBackBuffer->Release();
 	if (FAILED(hr))
 	{
+		DEBUG_BREAK();
 		return hr;
 	}
 
 	return S_OK;
 }
 
-void Cleanup()
+HRESULT InitDepthStencilBuffer()
 {
-	if (g_pPixelShader) g_pPixelShader->Release();
-	if (g_pVertexShader) g_pVertexShader->Release();
-	if (g_pConstantBuffer) g_pConstantBuffer->Release();
-	if (g_pIndexBuffer) g_pIndexBuffer->Release();
-	if (g_pVertexBuffer) g_pVertexBuffer->Release();
-	if (g_pInputLayout) g_pInputLayout->Release();
-	if (g_pImmediateContext) g_pImmediateContext->ClearState();
-	if (g_pRenderTargetView) g_pRenderTargetView->Release();
-	if (g_pSwapChain) g_pSwapChain->Release();
-	if (g_pImmediateContext) g_pImmediateContext->Release();
-	if (g_pd3dDevice) g_pd3dDevice->Release();
-}
+	// Depth Stencil Buffer
+	D3D11_TEXTURE2D_DESC Desc;
+	Desc.Width = 800;
+	Desc.Height = 600;
+	Desc.MipLevels = 1;
+	Desc.ArraySize = 1;
+	Desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	switch (message)
+	Desc.SampleDesc.Count = 1;
+	Desc.SampleDesc.Quality = 0;
+	Desc.Usage = D3D11_USAGE_DEFAULT; // 리소스의 사용법을 지정 함
+	/*
+		D3D11_USAGE_DEFAULT	= 0, // GPU 에서 주로 사용되며, CPU는 거의 접근하지 않음.
+		D3D11_USAGE_IMMUTABLE	= 1, // 생성 후 변경되지 않는 리소스
+		D3D11_USAGE_DYNAMIC	= 2,     // CPU에서 자주 업데이트 되며, GPU 에서 읽기 전용으로 사용
+		D3D11_USAGE_STAGING	= 3 // CPU와 GPU 간의 데이터 전송에 사용됨
+	*/
+
+	Desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	Desc.CPUAccessFlags = 0;
+	Desc.MiscFlags = 0;
+
+	ID3D11Texture2D* pDepthStencilBuffer = nullptr;
+	HRESULT hr = g_pd3dDevice->CreateTexture2D(&Desc, nullptr, &pDepthStencilBuffer);
+	if (FAILED(hr))
 	{
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		break;
-	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
+		DEBUG_BREAK();
+		return hr;
 	}
-	return 0;
+
+	hr = g_pd3dDevice->CreateDepthStencilView(pDepthStencilBuffer, nullptr, &g_pDepthStencilView);
+	pDepthStencilBuffer->Release();
+	if (FAILED(hr)) 
+	{
+		DEBUG_BREAK();
+		return hr;
+	}
+
+	return S_OK;
 }
 
-// 02. BasicSahder
+HRESULT InitD3D(HWND hWnd)
+{
+	IDXGIAdapter* pBestAdapter = GetBestAdapter();
+	if (nullptr == pBestAdapter)
+	{
+		DEBUG_BREAK();
+		return E_FAIL;
+	}
+
+	InitDeviceAndSwapChain(hWnd, pBestAdapter);
+
+	InitRenderTargetView();
+
+	InitDepthStencilBuffer();
+	
+	return S_OK;
+}
+
 HRESULT InitVertexBuffer()
 {
 	D3D11_BUFFER_DESC desc;
@@ -371,11 +411,13 @@ void PSSetting()
 
 void OMSetting()
 {
-	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, nullptr);
+	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 }
 
 void BeginPlay()
 {
+	InitDepthStencilBuffer();
+
 	InitVertexBuffer();
 
 	InitIndexBuffer();
@@ -401,6 +443,7 @@ void RenderBegin()
 {
 	float clearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
+	g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 }
 
 void Render()
@@ -408,15 +451,15 @@ void Render()
 	g_fRotaionAngle += 0.001f;
 
 	Transform tf1;
-	tf1.SetScale({2.0f, 2.0f, 1.0f});
-	tf1.SetRotation({0.0f, 0.0f, g_fRotaionAngle});
-	tf1.SetPosition({0.0f, 1.0f, 0.0f});
+	tf1.SetScale({ 2.0f, 2.0f, 1.0f });
+	tf1.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
+	tf1.SetPosition({ 0.0f, 1.0f, 0.0f });
 	UpdateConstantResource(tf1);
 	g_pImmediateContext->DrawIndexed(36, 0, 0);
-	
+
 	Transform tf2;
 	tf2.SetScale({ 2.0f, 2.0f, 1.0f });
-	tf2.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle});
+	tf2.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
 	tf2.SetPosition({ 0.0f, -1.0f, 0.0f });
 	UpdateConstantResource(tf2);
 	g_pImmediateContext->DrawIndexed(36, 0, 0);
@@ -425,6 +468,35 @@ void Render()
 void RenderEnd()
 {
 	g_pSwapChain->Present(0, 0);
+}
+
+void Cleanup()
+{
+	if (g_pPixelShader) g_pPixelShader->Release();
+	if (g_pVertexShader) g_pVertexShader->Release();
+	if (g_pConstantBuffer) g_pConstantBuffer->Release();
+	if (g_pIndexBuffer) g_pIndexBuffer->Release();
+	if (g_pVertexBuffer) g_pVertexBuffer->Release();
+	if (g_pInputLayout) g_pInputLayout->Release();
+	if (g_pImmediateContext) g_pImmediateContext->ClearState();
+	if (g_pDepthStencilView) g_pDepthStencilView->Release();
+	if (g_pRenderTargetView) g_pRenderTargetView->Release();
+	if (g_pSwapChain) g_pSwapChain->Release();
+	if (g_pImmediateContext) g_pImmediateContext->Release();
+	if (g_pd3dDevice) g_pd3dDevice->Release();
+}
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+	return 0;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
