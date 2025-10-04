@@ -44,7 +44,8 @@ float4 main(PS_INPUT input) : SV_TARGET
     
     // **Change**
     //float4 finalColor = input.color * (diffuseColor + ambientColor);
-    float4 finalColor = texColor * (diffuseColor + ambientColor);
+    //float4 finalColor = texColor * (diffuseColor + ambientColor)
+    float4 finalColor = texColor;
     return finalColor;
 }
 

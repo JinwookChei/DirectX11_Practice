@@ -1,21 +1,23 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 
 #define ResolutionWidth 800.0f
 #define	ResolutionHeigh 600.0f
 
 // ADD
+// ID3D11Texture2D* g_pTextureResource = nullptr;
 // ID3D11ShaderResourceView* g_pTextureResourceView = nullptr;
 // ID3D11SamplerState* g_pSamplerLinear = nullptr;
 // HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, ID3D11DeviceContext* context, const wchar_t* fileName, ID3D11ShaderResourceView** outSRV)
 // HRESULT InitTexture()
-
+// MIPMAP
+// ANISORTROPY Filtering
 
 // Init
 ID3D11Device* g_pd3dDevice = nullptr;
 ID3D11DeviceContext* g_pImmediateContext = nullptr; // Device Context
-IDXGISwapChain* g_pSwapChain = nullptr; // ½º¿Ò Ã¼ÀÎ
-ID3D11RenderTargetView* g_pRenderTargetView = nullptr; // ·»´õ Å¸ÄÏ ºä
-ID3D11DepthStencilView* g_pDepthStencilView = nullptr; // ±íÀÌ ½ºÅÙ½Ç ºä
+IDXGISwapChain* g_pSwapChain = nullptr; // ìŠ¤ì™‘ ì²´ì¸
+ID3D11RenderTargetView* g_pRenderTargetView = nullptr; // ë Œë” íƒ€ì¼“ ë·°
+ID3D11DepthStencilView* g_pDepthStencilView = nullptr; // ê¹Šì´ ìŠ¤í…ì‹¤ ë·°
 
 // Render
 ID3D11InputLayout* g_pInputLayout = nullptr;
@@ -27,9 +29,13 @@ ID3D11PixelShader* g_pPixelShader = nullptr;
 
 // Texture
 // **Change**
+ID3D11Texture2D* g_pTextureResource = nullptr;
+// **Change**
 ID3D11ShaderResourceView* g_pTextureResourceView = nullptr;
 // **Change**
 ID3D11SamplerState* g_pSamplerLinear = nullptr;
+
+
 
 struct SimpleVertex {
 	DirectX::XMFLOAT3 position;
@@ -46,7 +52,7 @@ struct ConstantBuffer
 	DirectX::XMMATRIX projection;
 
 	//Light
-	// 4Byte ´ÜÀ§·Î Padding Áà¾ßÇÔ.
+	// 4Byte ë‹¨ìœ„ë¡œ Padding ì¤˜ì•¼í•¨.
 	DirectX::XMFLOAT4 lightColor;
 	DirectX::XMFLOAT4 ambientColor;
 	DirectX::XMFLOAT3 spotPosition;
@@ -57,32 +63,32 @@ struct ConstantBuffer
 };
 
 SimpleVertex vertices[] = {
-	// ¾Æ·¡ (-Z)
+	// ì•„ë˜ (-Z)
 	{DirectX::XMFLOAT3(-0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(0,1), DirectX::XMFLOAT4(-1,0,0,1)},
 	{DirectX::XMFLOAT3(-0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(0,0), DirectX::XMFLOAT4(-1,0,0,1)},
 	{DirectX::XMFLOAT3(0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(1,0), DirectX::XMFLOAT4(-1,0,0,1)},
 	{DirectX::XMFLOAT3(0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(1,1), DirectX::XMFLOAT4(-1,0,0,1)},
-	// À§ (+Z)
+	// ìœ„ (+Z)
 	{DirectX::XMFLOAT3(-0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(1,0,0,1)},
 	{DirectX::XMFLOAT3(0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(1,0,0,1)},
 	{DirectX::XMFLOAT3(0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(1,0,0,1)},
 	{DirectX::XMFLOAT3(-0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(1,0,0,1)},
-	// ¾Õ (-X)
+	// ì• (-X)
 	{DirectX::XMFLOAT3(-0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(0,0,1,1)},
 	{DirectX::XMFLOAT3(-0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(0,0,1,1)},
 	{DirectX::XMFLOAT3(-0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(0,0,1,1)},
 	{DirectX::XMFLOAT3(-0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(0,0,1,1)},
-	// µÚ (+X)
+	// ë’¤ (+X)
 	{DirectX::XMFLOAT3(0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(0,0,-1,1)},
 	{DirectX::XMFLOAT3(0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(0,0,-1,1)},
 	{DirectX::XMFLOAT3(0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(0,0,-1,1)},
 	{DirectX::XMFLOAT3(0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(0,0,-1,1)},
-	// ¿À¸¥ÂÊ (+Y)
+	// ì˜¤ë¥¸ìª½ (+Y)
 	{DirectX::XMFLOAT3(-0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(1,0,0,1)},
 	{DirectX::XMFLOAT3(-0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(1,0,0,1)},
 	{DirectX::XMFLOAT3(0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(1,0,0,1)},
 	{DirectX::XMFLOAT3(0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(1,0,0,1)},
-	// ¿ŞÂÊ (-Y)
+	// ì™¼ìª½ (-Y)
 	{DirectX::XMFLOAT3(-0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,-1,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(-1,0,1,1)},
 	{DirectX::XMFLOAT3(-0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,-1,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(-1,0,1,1)},
 	{DirectX::XMFLOAT3(0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,-1,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(-1,0,1,1)},
@@ -141,20 +147,20 @@ IDXGIAdapter* GetBestAdapter()
 
 HRESULT InitDeviceAndSwapChain(HWND hWnd, IDXGIAdapter* pBestAdapter)
 {
-	// ½º¿Ò Ã¼ÀÎ ±¸Á¶Ã¼¸¦ ÃÊ±âÈ­ ÇØ¾ß ÇÔ
+	// ìŠ¤ì™‘ ì²´ì¸ êµ¬ì¡°ì²´ë¥¼ ì´ˆê¸°í™” í•´ì•¼ í•¨
 	DXGI_SWAP_CHAIN_DESC sd;
 	memset(&sd, 0x00, sizeof(sd));
-	sd.BufferCount = 1; // ¹é ¹öÆÛÀÇ ¼ö
-	sd.BufferDesc.Width = ResolutionWidth; // ¹é ¹öÆÛÀÇ ³Êºñ
-	sd.BufferDesc.Height = ResolutionHeigh; // ¹é ¹öÆÛÀÇ ³ôÀÌ
-	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // ¹é ¹öÆÛÀÇ Æ÷¸Ë
-	sd.BufferDesc.RefreshRate.Numerator = 60; // È­¸é »õ·Î °íÄ§ ºóµµ ( ºĞÀÚ )
-	sd.BufferDesc.RefreshRate.Denominator = 1; // È­¸é »õ·Î °íÄ§ ºóµµ ( ºĞ¸ğ )
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // ¹é ¹öÆÛÀÇ ¿ëµµ
-	sd.OutputWindow = hWnd; // ·»´õ¸µ ÇÒ À©µµ¿ì ÇÚµé
-	sd.SampleDesc.Count = 1; // ¸ÖÆ¼»ùÇÃ¸µ ¼ö
-	sd.SampleDesc.Quality = 0; // ¸ÖÆ¼»ùÇÃ¸µ Ç°Áú
-	sd.Windowed = TRUE; // Ã¢ ¸ğµå ÀÎÁö ¾Æ´ÑÁö.
+	sd.BufferCount = 1; // ë°± ë²„í¼ì˜ ìˆ˜
+	sd.BufferDesc.Width = ResolutionWidth; // ë°± ë²„í¼ì˜ ë„ˆë¹„
+	sd.BufferDesc.Height = ResolutionHeigh; // ë°± ë²„í¼ì˜ ë†’ì´
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // ë°± ë²„í¼ì˜ í¬ë§·
+	sd.BufferDesc.RefreshRate.Numerator = 60; // í™”ë©´ ìƒˆë¡œ ê³ ì¹¨ ë¹ˆë„ ( ë¶„ì )
+	sd.BufferDesc.RefreshRate.Denominator = 1; // í™”ë©´ ìƒˆë¡œ ê³ ì¹¨ ë¹ˆë„ ( ë¶„ëª¨ )
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // ë°± ë²„í¼ì˜ ìš©ë„
+	sd.OutputWindow = hWnd; // ë Œë”ë§ í•  ìœˆë„ìš° í•¸ë“¤
+	sd.SampleDesc.Count = 1; // ë©€í‹°ìƒ˜í”Œë§ ìˆ˜
+	sd.SampleDesc.Quality = 0; // ë©€í‹°ìƒ˜í”Œë§ í’ˆì§ˆ
+	sd.Windowed = TRUE; // ì°½ ëª¨ë“œ ì¸ì§€ ì•„ë‹Œì§€.
 
 	HRESULT hr = D3D11CreateDeviceAndSwapChain(
 		pBestAdapter,
@@ -184,7 +190,7 @@ HRESULT InitDeviceAndSwapChain(HWND hWnd, IDXGIAdapter* pBestAdapter)
 
 HRESULT InitRenderTargetView()
 {
-	// ¹é ¹öÆÛÀÇ ·»´õ Å¸ÄÏ ºä¸¦ ¾ò¾î¿Í¾ßÇÑ´Ù.
+	// ë°± ë²„í¼ì˜ ë Œë” íƒ€ì¼“ ë·°ë¥¼ ì–»ì–´ì™€ì•¼í•œë‹¤.
 	ID3D11Texture2D* pBackBuffer = nullptr;
 	HRESULT hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer);
 	if (FAILED(hr))
@@ -216,12 +222,12 @@ HRESULT InitDepthStencilBuffer()
 
 	Desc.SampleDesc.Count = 1;
 	Desc.SampleDesc.Quality = 0;
-	Desc.Usage = D3D11_USAGE_DEFAULT; // ¸®¼Ò½ºÀÇ »ç¿ë¹ıÀ» ÁöÁ¤ ÇÔ
+	Desc.Usage = D3D11_USAGE_DEFAULT; // ë¦¬ì†ŒìŠ¤ì˜ ì‚¬ìš©ë²•ì„ ì§€ì • í•¨
 	/*
-		D3D11_USAGE_DEFAULT	= 0, // GPU ¿¡¼­ ÁÖ·Î »ç¿ëµÇ¸ç, CPU´Â °ÅÀÇ Á¢±ÙÇÏÁö ¾ÊÀ½.
-		D3D11_USAGE_IMMUTABLE	= 1, // »ı¼º ÈÄ º¯°æµÇÁö ¾Ê´Â ¸®¼Ò½º
-		D3D11_USAGE_DYNAMIC	= 2,     // CPU¿¡¼­ ÀÚÁÖ ¾÷µ¥ÀÌÆ® µÇ¸ç, GPU ¿¡¼­ ÀĞ±â Àü¿ëÀ¸·Î »ç¿ë
-		D3D11_USAGE_STAGING	= 3 // CPU¿Í GPU °£ÀÇ µ¥ÀÌÅÍ Àü¼Û¿¡ »ç¿ëµÊ
+		D3D11_USAGE_DEFAULT	= 0, // GPU ì—ì„œ ì£¼ë¡œ ì‚¬ìš©ë˜ë©°, CPUëŠ” ê±°ì˜ ì ‘ê·¼í•˜ì§€ ì•ŠìŒ.
+		D3D11_USAGE_IMMUTABLE	= 1, // ìƒì„± í›„ ë³€ê²½ë˜ì§€ ì•ŠëŠ” ë¦¬ì†ŒìŠ¤
+		D3D11_USAGE_DYNAMIC	= 2,     // CPUì—ì„œ ìì£¼ ì—…ë°ì´íŠ¸ ë˜ë©°, GPU ì—ì„œ ì½ê¸° ì „ìš©ìœ¼ë¡œ ì‚¬ìš©
+		D3D11_USAGE_STAGING	= 3 // CPUì™€ GPU ê°„ì˜ ë°ì´í„° ì „ì†¡ì— ì‚¬ìš©ë¨
 	*/
 
 	Desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
@@ -393,11 +399,15 @@ HRESULT InitPixelShader()
 	return S_OK;
 }
 
+
 // **Change**
-HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, ID3D11DeviceContext* context, const wchar_t* fileName, ID3D11ShaderResourceView** outSRV)
+HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, const wchar_t* fileName, bool isNormalMap, ID3D11ShaderResourceView** outSRV)
 {
-	DirectX::TexMetadata metadata;
+	DirectX::ScratchImage mipChain;
 	DirectX::ScratchImage scratchImg;
+	DirectX::TexMetadata metadata;
+
+
 	HRESULT hr = DirectX::LoadFromWICFile(fileName, DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
 	if (FAILED(hr))
 	{
@@ -408,51 +418,139 @@ HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, ID3D11DeviceContext* con
 			return hr;
 		}
 	}
-
-	const DirectX::Image* pImg = scratchImg.GetImage(0, 0, 0);
-	if (metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
-	{
-		DirectX::ScratchImage convImg;
-		hr = DirectX::Convert(pImg, 1, metadata, DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, convImg);
-		if (FAILED(hr))
-		{
-			DEBUG_BREAK();
-			return hr;
-		}
-		pImg = convImg.GetImage(0, 0, 0);
-		metadata.format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	}
-
-	ID3D11Texture2D* pTexture = nullptr;
-	hr = DirectX::CreateTexture(device, pImg, 1, metadata, (ID3D11Resource**)&pTexture);
+	
+	// MipMap ìƒì„±
+	hr = DirectX::GenerateMipMaps(*scratchImg.GetImage(0, 0, 0), DirectX::TEX_FILTER_DEFAULT, 0, mipChain);
 	if (FAILED(hr))
 	{
 		DEBUG_BREAK();
 		return hr;
 	}
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = metadata.format;
+	// Texture2D ìƒì„±
+	D3D11_TEXTURE2D_DESC desc{};
+	desc.Width = (UINT)metadata.width;
+	desc.Height = (UINT)metadata.height;
+	desc.MipLevels = (UINT)mipChain.GetMetadata().mipLevels;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB; // Color Map ê¸°ì¤€
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	std::vector<D3D11_SUBRESOURCE_DATA> initData(desc.MipLevels);
+	for (UINT i = 0; i < desc.MipLevels; ++i)
+	{
+		const DirectX::Image* img = mipChain.GetImage(i, 0, 0);
+		initData[i].pSysMem = img->pixels;
+		initData[i].SysMemPitch = img->rowPitch;
+		initData[i].SysMemSlicePitch = img->slicePitch;
+	}
+
+	hr = device->CreateTexture2D(&desc, initData.data(), &g_pTextureResource);
+	if (FAILED(hr))
+	{
+		DEBUG_BREAK();
+		return hr;
+	}
+
+	// Shader Resource View ìƒì„±
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	srvDesc.Format = desc.Format;
 	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = (UINT)metadata.mipLevels;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-
-	hr = device->CreateShaderResourceView(pTexture, &srvDesc, outSRV);
-	pTexture->Release();
-	if (FAILED(hr))
-	{
-		DEBUG_BREAK();
-		return hr;
-	}
+	srvDesc.Texture2D.MipLevels = desc.MipLevels;
+	hr = device->CreateShaderResourceView(g_pTextureResource, &srvDesc, outSRV);
+	if (FAILED(hr)) return hr;
 
 	return S_OK;
+
+	//DirectX::TexMetadata metadata;
+	//DirectX::ScratchImage scratchImg;
+	//HRESULT hr = DirectX::LoadFromWICFile(fileName, DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
+	//if (FAILED(hr))
+	//{
+	//	hr = DirectX::LoadFromDDSFile(fileName, DirectX::DDS_FLAGS_NONE, &metadata, scratchImg);
+	//	if (FAILED(hr))
+	//	{
+	//		DEBUG_BREAK();
+	//		return hr;
+	//	}
+	//}
+	//const DirectX::Image* pImg = scratchImg.GetImage(0, 0, 0);
+
+	//DirectX::ScratchImage convImg;
+	//if (isNormalMap)
+	//{
+	//	// Normal Map â†’ UNORM (Linear)
+	//	if (metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM)
+	//	{
+	//		hr = DirectX::Convert(
+	//			pImg, 1, metadata,
+	//			DXGI_FORMAT_R8G8B8A8_UNORM,
+	//			DirectX::TEX_FILTER_DEFAULT,
+	//			DirectX::TEX_THRESHOLD_DEFAULT,
+	//			convImg
+	//		);
+	//		if (FAILED(hr)) return hr;
+
+	//		pImg = convImg.GetImage(0, 0, 0);
+	//		metadata.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	//	}
+	//}
+	//else
+	//{
+	//	if (metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+	//	{
+	//		hr = DirectX::Convert(
+	//			pImg, 1, metadata,
+	//			DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+	//			DirectX::TEX_FILTER_DEFAULT,
+	//			DirectX::TEX_THRESHOLD_DEFAULT,
+	//			convImg
+	//		);
+	//		if (FAILED(hr)) return hr;
+
+	//		pImg = convImg.GetImage(0, 0, 0);
+	//		metadata.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	//	}
+	//}
+
+	//ID3D11Texture2D* pTexture = nullptr;
+	//hr = DirectX::CreateTexture(device, pImg, 1, metadata, (ID3D11Resource**)&pTexture);
+	//if (FAILED(hr))
+	//{
+	//	DEBUG_BREAK();
+	//	return hr;
+	//}
+
+	//D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	//srvDesc.Format = metadata.format;
+	//srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	//srvDesc.Texture2D.MipLevels = (UINT)metadata.mipLevels;
+	//srvDesc.Texture2D.MostDetailedMip = 0;
+
+	//hr = device->CreateShaderResourceView(pTexture, &srvDesc, outSRV);
+	//pTexture->Release();
+	//if (FAILED(hr))
+	//{
+	//	DEBUG_BREAK();
+	//	return hr;
+	//}
+
+	//return S_OK;
 }
 
 // **Change**
 HRESULT InitTexture()
 {
-	const wchar_t* textureFile = L"../../Resource/Ragnarok_Online_Acolyte.png";
-	HRESULT hr = LoadTextureWithDirectXTex(g_pd3dDevice, g_pImmediateContext, textureFile, &g_pTextureResourceView);
+	//const wchar_t* textureFile = L"../../Resource/Bricks_2K/Bricks_Color.png";
+	//const wchar_t* textureFile = L"../../Resource/Bricks_4K/Bricks_Color.png";
+	//const wchar_t* textureFile = L"../../Resource/Stones_2K/Stones_Color.png";
+	const wchar_t* textureFile = L"../../Resource/Stones_4K/Stones_Color.png";
+	//const wchar_t* textureFile = L"../../Resource/Ragnarok_Online_Acolyte.png";
+	//const wchar_t* textureFile = L"../../Resource/BrickTexture.jpg";
+	
+	HRESULT hr = LoadTextureWithDirectXTex(g_pd3dDevice, textureFile, false, &g_pTextureResourceView);
 	if (FAILED(hr))
 	{
 		DEBUG_BREAK();	
@@ -460,15 +558,19 @@ HRESULT InitTexture()
 	}
 
 	D3D11_SAMPLER_DESC samplerDesc = {};
-	// samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;	// 0 ~ 1 ÃÖ±ÙÁ¢  -> °è´ÜÇüÅÂ·Î º¸ÀÓ 3D
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;	// 0 ~ 1 ¼±Çü U V  -> ÁÖÀ§ 4°³ÀÇ ÇÈ¼¿ 
-	// samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;         // ¼±¸íÇÏ°Ô º¸¿©¾ßÇÒ¶§ -> 16°³
+	// Point ìƒ˜í”Œë§
+	// samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;	// 0 ~ 1 ìµœê·¼ì ‘  -> ê³„ë‹¨í˜•íƒœë¡œ ë³´ì„ 3D
+	// Linear ìƒ˜í”Œë§
+	//samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;	// 0 ~ 1 ì„ í˜• U V  -> ì£¼ìœ„ 4ê°œì˜ í”½ì…€ 
+	// Anisotropic ìƒ˜í”Œë§
+	samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;         // ì„ ëª…í•˜ê²Œ ë³´ì—¬ì•¼í• ë•Œ -> 16ê°œ
+	samplerDesc.MaxAnisotropy = 8;
 
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP; // ¹İº¹
-	//samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP; // °æ°è °íÁ¤
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP; // ë°˜ë³µ
+	//samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP; // ê²½ê³„ ê³ ì •
 	//samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER; // 
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP; // ¹İº¹
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP; // ¹İº¹
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP; // ë°˜ë³µ
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP; // ë°˜ë³µ
 
 	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	samplerDesc.MinLOD = 0;
@@ -490,10 +592,10 @@ void UpdateConstantResource(const Transform& worldTransform)
 	DirectX::XMMATRIX rotation = worldTransform.GetRotationMatrix();
 	DirectX::XMMATRIX position = worldTransform.GetPositionMatrix();
 
-	// ¿ùµå, ºä, ÇÁ·ÎÁ§¼Ç Çà·Ä ¼³Á¤
-	// world´Â ¿ÀºêÁ§Æ®¸¶´Ù °íÀ¯ÀÇ °ªÀÌ¸ç, °¢°¢ÀÇ ¿ÀºêÁ§Æ®ÀÇ Transform À» Àû¿ëÇØ¾ßÇÔ.
+	// ì›”ë“œ, ë·°, í”„ë¡œì ì…˜ í–‰ë ¬ ì„¤ì •
+	// worldëŠ” ì˜¤ë¸Œì íŠ¸ë§ˆë‹¤ ê³ ìœ ì˜ ê°’ì´ë©°, ê°ê°ì˜ ì˜¤ë¸Œì íŠ¸ì˜ Transform ì„ ì ìš©í•´ì•¼í•¨.
 	DirectX::XMMATRIX world = scale * rotation * position;
-	DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(DirectX::XMVectorSet(10.0f, 0.0f, 2.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
+	DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(DirectX::XMVectorSet(5.0f, 0.0f, 2.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
 	DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4, ResolutionWidth / ResolutionHeigh, 0.01f, 100.0f);
 
 	// Spot Light
@@ -504,7 +606,7 @@ void UpdateConstantResource(const Transform& worldTransform)
 	float spotRange = 5.0f;
 	float spotAngle = cosf(DirectX::XMConvertToRadians(20.0f));
 
-	// »ó¼ö ¹öÆÛ ¾÷µ¥ÀÌÆ®
+	// ìƒìˆ˜ ë²„í¼ ì—…ë°ì´íŠ¸
 	ConstantBuffer cb;
 	cb.world = DirectX::XMMatrixTranspose(world);
 	cb.view = DirectX::XMMatrixTranspose(view);
@@ -522,15 +624,15 @@ void UpdateConstantResource(const Transform& worldTransform)
 void IASetting()
 {
 	g_pImmediateContext->IASetInputLayout(g_pInputLayout);
-	// ¹öÅØ½º ¹öÆÛ ¼³Á¤
+	// ë²„í…ìŠ¤ ë²„í¼ ì„¤ì •
 	UINT stride = sizeof(SimpleVertex);
 	UINT offset = 0;
 	g_pImmediateContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
 
-	// ÀÎµ¦½º ¹öÆÛ ¼³Á¤
+	// ì¸ë±ìŠ¤ ë²„í¼ ì„¤ì •
 	g_pImmediateContext->IASetIndexBuffer(g_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
-	// ÇÁ¸®¹ÌÆ¼ºê À¯Çü ¼³Á¤
+	// í”„ë¦¬ë¯¸í‹°ë¸Œ ìœ í˜• ì„¤ì •
 	g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
@@ -539,13 +641,13 @@ void VSSetting()
 	g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
 
 	// StartSlot : Buffer Slot
-	// NumBuffers : Buffer°¡ 2°³ ÀÌ»óÀÎ ¹è¿­ÀÎ °æ¿ì ¼³Á¤.
+	// NumBuffers : Bufferê°€ 2ê°œ ì´ìƒì¸ ë°°ì—´ì¸ ê²½ìš° ì„¤ì •.
 	g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
 }
 
 void RSSetting()
 {
-	// ºä Æ÷Æ® ¼³Á¤
+	// ë·° í¬íŠ¸ ì„¤ì •
 	D3D11_VIEWPORT vp;
 	vp.Width = ResolutionWidth;
 	vp.Height = ResolutionHeigh;
@@ -614,14 +716,14 @@ void Render()
 	g_fRotaionAngle += 0.001f;
 
 	Transform tf1;
-	tf1.SetScale({ 2.0f, 2.0f, 1.0f });
+	tf1.SetScale({ 1.0f, 1.0f, 1.0f });
 	tf1.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
 	tf1.SetPosition({ 0.0f, 1.0f, 0.0f });
 	UpdateConstantResource(tf1);
 	g_pImmediateContext->DrawIndexed(36, 0, 0);
 
 	Transform tf2;
-	tf2.SetScale({ 2.0f, 2.0f, 1.0f });
+	tf2.SetScale({ 1.0f, 1.0f, 1.0f });
 	tf2.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
 	tf2.SetPosition({ 0.0f, -1.0f, 0.0f });
 	UpdateConstantResource(tf2);
@@ -666,7 +768,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-	// À©µµ¿ì Å¬·¡½º µî·Ï
+	// ìœˆë„ìš° í´ë˜ìŠ¤ ë“±ë¡
 	WNDCLASSEX wc;
 	ZeroMemory(&wc, sizeof(WNDCLASSEX));
 	wc.cbSize = sizeof(WNDCLASSEX);
@@ -678,11 +780,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	wc.lpszClassName = L"WindowClass";
 	RegisterClassEx(&wc);
 
-	// À©µµ¿ì »ı¼º
+	// ìœˆë„ìš° ìƒì„±
 	HWND hWnd = CreateWindowEx(
 		0,
 		L"WindowClass",
-		L"Direct3D 11 À©µµ¿ì",
+		L"Direct3D 11 ìœˆë„ìš°",
 		WS_OVERLAPPEDWINDOW,
 		100, 100,
 		ResolutionWidth, ResolutionHeigh,
