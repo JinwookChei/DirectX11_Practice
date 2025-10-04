@@ -1,0 +1,1 @@
+C:\Practice\DirectXTex\DirectXTex\Bin\Desktop_2022\x64\Debug\DirectXTex.lib
