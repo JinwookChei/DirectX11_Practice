@@ -8,13 +8,7 @@
 //#define	ResolutionHeigh 600.0f
 
 // ADD
-// ID3D11Texture2D* g_pTextureResource = nullptr;
-// ID3D11ShaderResourceView* g_pTextureResourceView = nullptr;
-// ID3D11SamplerState* g_pSamplerLinear = nullptr;
-// HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, ID3D11DeviceContext* context, const wchar_t* fileName, ID3D11ShaderResourceView** outSRV)
-// HRESULT InitTexture()
-// MIPMAP
-// ANISORTROPY Filtering
+
 
 // Init
 ID3D11Device* g_pd3dDevice = nullptr;
@@ -32,13 +26,12 @@ ID3D11VertexShader* g_pVertexShader = nullptr;
 ID3D11PixelShader* g_pPixelShader = nullptr;
 
 // Texture
-// **Change**
-ID3D11Texture2D* g_pTextureResource = nullptr;
-// **Change**
+//ID3D11Texture2D* g_pTextureResource = nullptr;
 ID3D11ShaderResourceView* g_pTextureResourceView = nullptr;
-// **Change**
 ID3D11SamplerState* g_pSamplerLinear = nullptr;
 
+// Normal Mapping
+ID3D11ShaderResourceView* g_pNormalMapShaderResourceView = nullptr;
 
 
 struct SimpleVertex {
@@ -403,14 +396,12 @@ HRESULT InitPixelShader()
 	return S_OK;
 }
 
-
-// **Change**
 HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, const wchar_t* fileName, bool isNormalMap, ID3D11ShaderResourceView** outSRV)
 {
-	// MipMap 추가하는 코드인데 이상함. 수정해야함
 	//DirectX::ScratchImage mipChain;
 	//DirectX::ScratchImage scratchImg;
 	//DirectX::TexMetadata metadata;
+
 	//HRESULT hr = DirectX::LoadFromWICFile(fileName, DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
 	//if (FAILED(hr))
 	//{
@@ -421,23 +412,32 @@ HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, const wchar_t* fileName,
 	//		return hr;
 	//	}
 	//}
+
 	//// MipMap 생성
-	//hr = DirectX::GenerateMipMaps(*scratchImg.GetImage(0, 0, 0), DirectX::TEX_FILTER_DEFAULT, 0, mipChain);
+	//// TEX_FILTER_FANT로 노말 매핑을 하지만 노말의 정확도가 중요한 프로젝트인(ex. PBR) 인경우 추가 계산을 해줘야함
+	//// TEX_FILTER_FANT은 고품질 MipMap생성인데, 노말 맵핑에서는 컬러텍스쳐보다 더 좋은 품질의 MipMap이 필요 함.
+	//DirectX::TEX_FILTER_FLAGS filterFlags = isNormalMap ? DirectX::TEX_FILTER_FANT : DirectX::TEX_FILTER_DEFAULT;
+	//hr = DirectX::GenerateMipMaps(*scratchImg.GetImage(0, 0, 0), filterFlags, 0, mipChain);
 	//if (FAILED(hr))
 	//{
 	//	DEBUG_BREAK();
 	//	return hr;
 	//}
+
 	//// Texture2D 생성
+	//// ColorMap : DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+	//// NormalMap : DXGI_FORMAT_R8G8B8A8_UNORM
+	//DXGI_FORMAT format = isNormalMap ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	//D3D11_TEXTURE2D_DESC desc{};
 	//desc.Width = (UINT)metadata.width;
 	//desc.Height = (UINT)metadata.height;
 	//desc.MipLevels = (UINT)mipChain.GetMetadata().mipLevels;
 	//desc.ArraySize = 1;
-	//desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB; // Color Map 기준
+	//desc.Format = format;
 	//desc.SampleDesc.Count = 1;
 	//desc.Usage = D3D11_USAGE_DEFAULT;
 	//desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
 	//std::vector<D3D11_SUBRESOURCE_DATA> initData(desc.MipLevels);
 	//for (UINT i = 0; i < desc.MipLevels; ++i)
 	//{
@@ -446,19 +446,28 @@ HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, const wchar_t* fileName,
 	//	initData[i].SysMemPitch = img->rowPitch;
 	//	initData[i].SysMemSlicePitch = img->slicePitch;
 	//}
-	//hr = device->CreateTexture2D(&desc, initData.data(), &g_pTextureResource);
+
+	//ID3D11Texture2D* pTexture;
+	//hr = device->CreateTexture2D(&desc, initData.data(), &pTexture);
 	//if (FAILED(hr))
 	//{
 	//	DEBUG_BREAK();
 	//	return hr;
 	//}
+
 	//// Shader Resource View 생성
 	//D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 	//srvDesc.Format = desc.Format;
 	//srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	//srvDesc.Texture2D.MipLevels = desc.MipLevels;
-	//hr = device->CreateShaderResourceView(g_pTextureResource, &srvDesc, outSRV);
-	//if (FAILED(hr)) return hr;
+	//hr = device->CreateShaderResourceView(pTexture, &srvDesc, outSRV);
+	//pTexture->Release();
+	//if (FAILED(hr))
+	//{
+	//	DEBUG_BREAK();
+	//	return hr;
+	//}
+
 	//return S_OK;
 
 	DirectX::TexMetadata metadata;
@@ -543,16 +552,29 @@ HRESULT InitTexture()
 	//const wchar_t* textureFile = L"../../Resource/Bricks_2K/Bricks_Color.png";
 	//const wchar_t* textureFile = L"../../Resource/Bricks_4K/Bricks_Color.png";
 	//const wchar_t* textureFile = L"../../Resource/Stones_2K/Stones_Color.png";
-	const wchar_t* textureFile = L"../../Resource/Stones_4K/Stones_Color.png";
+	//const wchar_t* textureFile = L"../../Resource/Stones_4K/Stones_Color.png";
 	//const wchar_t* textureFile = L"../../Resource/Ragnarok_Online_Acolyte.png";
-	//const wchar_t* textureFile = L"../../Resource/BrickTexture.jpg";
-
+	const wchar_t* textureFile = L"../../Resource/BrickTexture.jpg";
 	HRESULT hr = LoadTextureWithDirectXTex(g_pd3dDevice, textureFile, false, &g_pTextureResourceView);
 	if (FAILED(hr))
 	{
 		DEBUG_BREAK();
 		return hr;
 	}
+	
+	//const wchar_t* normalFile = L"../../Resource/Bricks_2K/Bricks_NormalDX.png";
+	//const wchar_t* normalFile = L"../../Resource/Bricks_4K/Bricks_NormalDX.png";
+	//const wchar_t* normalFile = L"../../Resource/Stones_2K/Stones_NormalDX.png";
+	//const wchar_t* normalFile = L"../../Resource/Stones_4K/Stones_NormalDX.png";
+	const wchar_t* normalFile = L"../../Resource/BrickNormal.jpg";
+	hr = LoadTextureWithDirectXTex(g_pd3dDevice, normalFile, true, &g_pNormalMapShaderResourceView);
+	if (FAILED(hr))
+	{
+		DEBUG_BREAK();
+		return hr;
+	}
+
+
 
 	D3D11_SAMPLER_DESC samplerDesc = {};
 	// Point 샘플링
@@ -592,15 +614,15 @@ void UpdateConstantResource(const Transform& worldTransform)
 	// 월드, 뷰, 프로젝션 행렬 설정
 	// world는 오브젝트마다 고유의 값이며, 각각의 오브젝트의 Transform 을 적용해야함.
 	DirectX::XMMATRIX world = scale * rotation * position;
-	DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(DirectX::XMVectorSet(5.0f, 0.0f, 2.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
+	DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(DirectX::XMVectorSet(-3.0f, -1.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
 	DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4, ResolutionWidth / ResolutionHeigh, 0.01f, 100.0f);
 
 	// Spot Light
 	DirectX::XMFLOAT4 lightColor = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	DirectX::XMFLOAT4 ambientColor = DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 0.2f);
-	DirectX::XMFLOAT3 spotPosition = DirectX::XMFLOAT3(0.0f, 0.0f, 2.0f);
-	DirectX::XMFLOAT3 spotDirection = DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f);
-	float spotRange = 5.0f;
+	DirectX::XMFLOAT4 ambientColor = DirectX::XMFLOAT4(0.3f, 0.3f, 0.3f, 0.3f);
+	DirectX::XMFLOAT3 spotPosition = DirectX::XMFLOAT3(-2.0f, -1.0f, 0.0f);
+	DirectX::XMFLOAT3 spotDirection = DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f);
+	float spotRange = 20.0f;
 	float spotAngle = cosf(DirectX::XMConvertToRadians(20.0f));
 
 	// 상수 버퍼 업데이트
@@ -665,6 +687,8 @@ void PSSetting()
 
 	g_pImmediateContext->PSSetShaderResources(0, 1, &g_pTextureResourceView);
 
+	g_pImmediateContext->PSSetShaderResources(1, 1, &g_pNormalMapShaderResourceView);
+
 	g_pImmediateContext->PSSetSamplers(0, 1, &g_pSamplerLinear);
 }
 
@@ -687,7 +711,6 @@ void BeginPlay()
 
 	InitPixelShader();
 
-	// **Change**
 	InitTexture();
 
 	IASetting();
@@ -734,7 +757,7 @@ void RenderEnd()
 
 void Cleanup()
 {
-	if (g_pTextureResource) g_pTextureResource->Release();
+	if (g_pNormalMapShaderResourceView) g_pNormalMapShaderResourceView->Release();
 	if (g_pSamplerLinear) g_pSamplerLinear->Release();
 	if (g_pTextureResourceView) g_pTextureResourceView->Release();
 	if (g_pPixelShader) g_pPixelShader->Release();
