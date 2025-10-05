@@ -8,9 +8,8 @@
 //#define	ResolutionHeigh 600.0f
 
 // ADD
-// ID3D11BlendState* g_pAlphaBlendState = nullptr;
-// HRESULT InitAlphaBlendState()
-// OMSetting
+// ID3D11RasterizerState* g_pRasterizerState = nullptr;
+// HRESULT InitRasterizerState()
 
 // Init
 ID3D11Device* g_pd3dDevice = nullptr;
@@ -36,8 +35,11 @@ ID3D11SamplerState* g_pSamplerLinear = nullptr;
 ID3D11ShaderResourceView* g_pNormalMapShaderResourceView = nullptr;
 
 // Alpha Blend
-// **Chage**
 ID3D11BlendState* g_pAlphaBlendState = nullptr;
+
+//Rasterizer
+// **Change**
+ID3D11RasterizerState* g_pRasterizerState = nullptr;
 
 struct SimpleVertex {
 	DirectX::XMFLOAT3 position;
@@ -481,11 +483,11 @@ HRESULT LoadTextureWithDirectXTex(ID3D11Device* device, const wchar_t* fileName,
 
 HRESULT InitTexture()
 {
-	//const wchar_t* textureFile = L"../../Resource/Bricks_2K/Bricks_Color.png";
+	const wchar_t* textureFile = L"../../Resource/Bricks_2K/Bricks_Color.png";
 	//const wchar_t* textureFile = L"../../Resource/Bricks_4K/Bricks_Color.png";
 	//const wchar_t* textureFile = L"../../Resource/Stones_2K/Stones_Color.png";
 	//const wchar_t* textureFile = L"../../Resource/Stones_4K/Stones_Color.png";
-	const wchar_t* textureFile = L"../../Resource/Ragnarok_Online_Acolyte.png";
+	//const wchar_t* textureFile = L"../../Resource/Ragnarok_Online_Acolyte.png";
 	//const wchar_t* textureFile = L"../../Resource/BrickTexture.jpg";
 	HRESULT hr = LoadTextureWithDirectXTex(g_pd3dDevice, textureFile, false, &g_pTextureResourceView);
 	if (FAILED(hr))
@@ -494,17 +496,17 @@ HRESULT InitTexture()
 		return hr;
 	}
 	
-	//const wchar_t* normalFile = L"../../Resource/Bricks_2K/Bricks_NormalDX.png";
+	const wchar_t* normalFile = L"../../Resource/Bricks_2K/Bricks_NormalDX.png";
 	//const wchar_t* normalFile = L"../../Resource/Bricks_4K/Bricks_NormalDX.png";
 	//const wchar_t* normalFile = L"../../Resource/Stones_2K/Stones_NormalDX.png";
 	//const wchar_t* normalFile = L"../../Resource/Stones_4K/Stones_NormalDX.png";
 	//const wchar_t* normalFile = L"../../Resource/BrickNormal.jpg";
-	/*hr = LoadTextureWithDirectXTex(g_pd3dDevice, normalFile, true, &g_pNormalMapShaderResourceView);
+	hr = LoadTextureWithDirectXTex(g_pd3dDevice, normalFile, true, &g_pNormalMapShaderResourceView);
 	if (FAILED(hr))
 	{
 		DEBUG_BREAK();
 		return hr;
-	}*/
+	}
 
 
 
@@ -536,7 +538,6 @@ HRESULT InitTexture()
 	return hr;
 }
 
-// **Change""
 HRESULT InitAlphaBlendState()
 {
 	//D3D11_BLEND_DESC blendDesc = {};
@@ -599,6 +600,36 @@ HRESULT InitAlphaBlendState()
 	return hr;
 }
 
+// **Change**
+HRESULT InitRasterizerState()
+{
+	D3D11_RASTERIZER_DESC rasDesc = {};
+	//rasDesc.FillMode = D3D11_FILL_WIREFRAME;
+	rasDesc.FillMode = D3D11_FILL_SOLID;
+
+	//rasDesc.CullMode = D3D11_CULL_FRONT;
+	rasDesc.CullMode = D3D11_CULL_BACK;
+
+	rasDesc.FrontCounterClockwise = false;
+
+	//rasDesc.DepthBias;
+	//rasDesc.DepthBiasClamp;
+	//rasDesc.SlopeScaledDepthBias;
+	//rasDesc.DepthClipEnable;
+	//rasDesc.ScissorEnable;
+	//rasDesc.MultisampleEnable;
+	//rasDesc.AntialiasedLineEnable;
+
+	HRESULT hr = g_pd3dDevice->CreateRasterizerState(&rasDesc, &g_pRasterizerState);
+	if (FAILED(hr))
+	{
+		DEBUG_BREAK();
+		return hr;
+	}
+
+	return hr;
+}
+
 void UpdateConstantResource(const Transform& worldTransform)
 {
 	Float4 worldPosition = worldTransform.GetPosition();
@@ -617,6 +648,7 @@ void UpdateConstantResource(const Transform& worldTransform)
 	DirectX::XMFLOAT4 ambientColor = DirectX::XMFLOAT4(0.3f, 0.3f, 0.3f, 0.3f);
 	DirectX::XMFLOAT3 spotPosition = DirectX::XMFLOAT3(-2.0f, -1.0f, 0.0f);
 	DirectX::XMFLOAT3 spotDirection = DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f);
+
 	float spotRange = 20.0f;
 	float spotAngle = cosf(DirectX::XMConvertToRadians(20.0f));
 
@@ -659,6 +691,7 @@ void VSSetting()
 	g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
 }
 
+// **Change**
 void RSSetting()
 {
 	// 뷰 포트 설정
@@ -671,6 +704,8 @@ void RSSetting()
 	vp.TopLeftY = 0;
 
 	g_pImmediateContext->RSSetViewports(1, &vp);
+
+	g_pImmediateContext->RSSetState(g_pRasterizerState);
 }
 
 void PSSetting()
@@ -686,7 +721,6 @@ void PSSetting()
 	g_pImmediateContext->PSSetSamplers(0, 1, &g_pSamplerLinear);
 }
 
-// **Change** 
 void OMSetting()
 {
 	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
@@ -721,6 +755,8 @@ void BeginPlay()
 
 	InitAlphaBlendState();
 
+	InitRasterizerState();
+
 	IASetting();
 
 	VSSetting();
@@ -741,12 +777,12 @@ void RenderBegin()
 
 void Render()
 {
-	g_fRotaionAngle += 0.001f;
+	g_fRotaionAngle += 0.002f;
 
 	Transform tf1;
 	tf1.SetScale({ 1.0f, 1.0f, 1.0f });
 	tf1.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
-	tf1.SetPosition({ 3.0f, -0.5f, 0.0f });
+	tf1.SetPosition({ 0.0f, 1.0f, 0.0f });
 	UpdateConstantResource(tf1);
 	g_pImmediateContext->DrawIndexed(36, 0, 0);
 
@@ -765,6 +801,7 @@ void RenderEnd()
 
 void Cleanup()
 {
+	if (g_pRasterizerState) g_pRasterizerState->Release();
 	if (g_pAlphaBlendState) g_pAlphaBlendState->Release();
 	if (g_pNormalMapShaderResourceView) g_pNormalMapShaderResourceView->Release();
 	if (g_pSamplerLinear) g_pSamplerLinear->Release();

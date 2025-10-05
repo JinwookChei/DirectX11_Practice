@@ -54,53 +54,7 @@ float4 main(PS_INPUT input) : SV_TARGET
     float diffuseColor = diffuse * lightColor;
     
     float4 finalColor = colorTex * (diffuseColor + ambientColor);
+    finalColor.a = colorTex.a; // 텍스처 알파 사용
     
-    //return finalColor;
-    return float4(worldNormal, 1.0f);
-
+    return finalColor;
 }
-
-// Before Use Normal Mapping
-//float4 main(PS_INPUT input) : SV_TARGET
-//{
-//    float4 colorTex = g_Texture.Sample(g_Sampler, input.uv);
-    
-//    float3 N = normalize(input.normal);
-//    float3 L = normalize(spotPosition - input.worldPos);
-//    float3 S = normalize(-spotDirection);
-    
-//    float spotCos = dot(L, S);
-//    float spotEffect = smoothstep(spotAngle, spotAngle + 0.05, spotCos);
-    
-//    float dist = length(spotPosition - input.worldPos);
-//    float att = saturate(1.0f - dist / spotRange);
-    
-//    float diffuse = saturate(dot(N, L)) * spotEffect * att;
-//    float diffuseColor = diffuse * lightColor;
-    
-//    float4 finalColor = colorTex * (diffuseColor + ambientColor);
-    
-//    return finalColor;
-//}
-
-// TangentSpace Normal
-//float4 main(PS_INPUT input) : SV_TARGET
-//{
-//    float4 normalTex = g_NormalMap.Sample(g_Sampler, input.uv);
-
-//    float3 unpackNormalTex = UnpackNormal(normalTex);
-    
-//    return normalTex;
-//}
-
-// WorldSpace Normal
-//float4 main(PS_INPUT input) : SV_TARGET
-//{
-//    float4 normalTex = g_NormalMap.Sample(g_Sampler, input.uv);
-    
-//    float3 unpackNormalTex = UnpackNormal(normalTex);
-    
-//    float3 worldNormal = normalize(mul(unpackNormalTex, input.TBN));
-    
-//    return float4(worldNormal, 1.0f);
-//}
