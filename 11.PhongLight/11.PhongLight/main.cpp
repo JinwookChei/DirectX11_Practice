@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 
+
 #define ResolutionWidth 2560.0f
 #define	ResolutionHeigh 1440.0f
 //#define ResolutionWidth 1280.0f
@@ -8,8 +9,7 @@
 //#define	ResolutionHeigh 600.0f
 
 // ADD
-// ID3D11RasterizerState* g_pRasterizerState = nullptr;
-// HRESULT InitRasterizerState()
+// bool CreateSphere(std::vector<SimpleVertex>* outVertices, std::vector<WORD>* outIndices, float radius = 0.5f);
 
 // Init
 ID3D11Device* g_pd3dDevice = nullptr;
@@ -22,9 +22,13 @@ ID3D11DepthStencilView* g_pDepthStencilView = nullptr; // 깊이 스텐실 뷰
 ID3D11InputLayout* g_pInputLayout = nullptr;
 ID3D11Buffer* g_pVertexBuffer = nullptr;
 ID3D11Buffer* g_pIndexBuffer = nullptr;
-ID3D11Buffer* g_pConstantBuffer;
+
 ID3D11VertexShader* g_pVertexShader = nullptr;
 ID3D11PixelShader* g_pPixelShader = nullptr;
+
+ID3D11Buffer* g_pCBTransform = nullptr;
+ID3D11Buffer* g_pCBLight = nullptr;
+ID3D11Buffer* g_pCBMaterial = nullptr;
 
 // Texture
 //ID3D11Texture2D* g_pTextureResource = nullptr;
@@ -38,65 +42,85 @@ ID3D11ShaderResourceView* g_pNormalMapShaderResourceView = nullptr;
 ID3D11BlendState* g_pAlphaBlendState = nullptr;
 
 //Rasterizer
-// **Change**
 ID3D11RasterizerState* g_pRasterizerState = nullptr;
 
 struct SimpleVertex {
-	DirectX::XMFLOAT3 position;
-	DirectX::XMFLOAT4 color;
-	DirectX::XMFLOAT3 normal;
-	DirectX::XMFLOAT2 UV;
-	DirectX::XMFLOAT4 tangent;
+	
+	Float3 position;
+	Float4 color;
+	Float3 normal;
+	Float2 UV;
+	Float4 tangent;
+
+	SimpleVertex(Float3 pos, Float4 tmpcolor, Float3 tmpnormal, Float2 uv, Float4 tan)
+		: position(pos), color(tmpcolor), normal(tmpnormal), UV(uv), tangent(tan) {
+	}
+
+	SimpleVertex(Float3 pos, Float4 tmpcolor, Float3 tmpnormal, Float2 uv)
+		: position(pos), color(tmpcolor), normal(tmpnormal), UV(uv), tangent() {
+	}
 };
 
-struct ConstantBuffer
+struct CBTransform
 {
 	DirectX::XMMATRIX world;
 	DirectX::XMMATRIX view;
 	DirectX::XMMATRIX projection;
+	DirectX::XMMATRIX worldInvTranspose;
+};
 
-	//Light
-	// 4Byte 단위로 Padding 줘야함.
-	DirectX::XMFLOAT4 lightColor;
-	DirectX::XMFLOAT4 ambientColor;
-	DirectX::XMFLOAT3 spotPosition;
-	float spotRange;
-	DirectX::XMFLOAT3 spotDirection;
-	float spotAngle;
+struct CBLight
+{
+	Float4 lightDiffuse;
+	Float4 lightSpecular;
+	Float4 lightAmbient;
 
+	Float3 lightDir;
+	float pad0;
+};
+
+struct CBMaterial
+{
+	Float4 materialAmbient;
+	Float4 materialDiffuse;
+	Float4 materialSpecular;
+	Float4 materialEmissive;
+
+	float shininess;
+	Float3 materialPad;
 };
 
 SimpleVertex vertices[] = {
 	// 아래 (-Z)
-	{DirectX::XMFLOAT3(-0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(0,1), DirectX::XMFLOAT4(-1,0,0,1)},
-	{DirectX::XMFLOAT3(-0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(0,0), DirectX::XMFLOAT4(-1,0,0,1)},
-	{DirectX::XMFLOAT3(0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(1,0), DirectX::XMFLOAT4(-1,0,0,1)},
-	{DirectX::XMFLOAT3(0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,-1), DirectX::XMFLOAT2(1,1), DirectX::XMFLOAT4(-1,0,0,1)},
+	{Float3(-0.5f, -0.5f, -0.5f), Float4(1,0,0,1), Float3(0,0,-1), Float2(0,1), Float4(-1,0,0,1)},
+	{Float3(-0.5f,  0.5f, -0.5f), Float4(1,0,0,1), Float3(0,0,-1), Float2(0,0), Float4(-1,0,0,1)},
+	{Float3(0.5f,  0.5f, -0.5f),  Float4(1,0,0,1), Float3(0,0,-1), Float2(1,0), Float4(-1,0,0,1)},
+	{Float3(0.5f, -0.5f, -0.5f),  Float4(1,0,0,1), Float3(0,0,-1), Float2(1,1), Float4(-1,0,0,1)},
 	// 위 (+Z)
-	{DirectX::XMFLOAT3(-0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(1,0,0,1)},
-	{DirectX::XMFLOAT3(0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(1,0,0,1)},
-	{DirectX::XMFLOAT3(0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(1,0,0,1)},
-	{DirectX::XMFLOAT3(-0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(1,0,0,1), DirectX::XMFLOAT3(0,0,1), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(1,0,0,1)},
+	{Float3(-0.5f, -0.5f,  0.5f), Float4(1,0,0,1), Float3(0,0,1), Float2(1,1),Float4(1,0,0,1)},
+	{Float3(0.5f, -0.5f,  0.5f),  Float4(1,0,0,1), Float3(0,0,1), Float2(0,1),Float4(1,0,0,1)},
+	{Float3(0.5f,  0.5f,  0.5f),  Float4(1,0,0,1), Float3(0,0,1), Float2(0,0),Float4(1,0,0,1)},
+	{Float3(-0.5f,  0.5f,  0.5f), Float4(1,0,0,1), Float3(0,0,1), Float2(1,0),Float4(1,0,0,1)},
 	// 앞 (-X)
-	{DirectX::XMFLOAT3(-0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(0,0,1,1)},
-	{DirectX::XMFLOAT3(-0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(0,0,1,1)},
-	{DirectX::XMFLOAT3(-0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(0,0,1,1)},
-	{DirectX::XMFLOAT3(-0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(-1,0,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(0,0,1,1)},
+	{Float3(-0.5f, -0.5f,  0.5f), Float4(0,1,0,1), Float3(-1,0,0), Float2(0,1),Float4(0,0,1,1)},
+	{Float3(-0.5f,  0.5f,  0.5f), Float4(0,1,0,1), Float3(-1,0,0), Float2(0,0),Float4(0,0,1,1)},
+	{Float3(-0.5f,  0.5f, -0.5f), Float4(0,1,0,1), Float3(-1,0,0), Float2(1,0),Float4(0,0,1,1)},
+	{Float3(-0.5f, -0.5f, -0.5f), Float4(0,1,0,1), Float3(-1,0,0), Float2(1,1),Float4(0,0,1,1)},
 	// 뒤 (+X)
-	{DirectX::XMFLOAT3(0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(0,0,-1,1)},
-	{DirectX::XMFLOAT3(0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(0,0,-1,1)},
-	{DirectX::XMFLOAT3(0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(0,0,-1,1)},
-	{DirectX::XMFLOAT3(0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(0,1,0,1), DirectX::XMFLOAT3(1,0,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(0,0,-1,1)},
+	{Float3(0.5f, -0.5f, -0.5f), Float4(0,1,0,1), Float3(1,0,0), Float2(0,1),Float4(0,0,-1,1)},
+	{Float3(0.5f,  0.5f, -0.5f), Float4(0,1,0,1), Float3(1,0,0), Float2(0,0),Float4(0,0,-1,1)},
+	{Float3(0.5f,  0.5f,  0.5f), Float4(0,1,0,1), Float3(1,0,0), Float2(1,0),Float4(0,0,-1,1)},
+	{Float3(0.5f, -0.5f,  0.5f), Float4(0,1,0,1), Float3(1,0,0), Float2(1,1),Float4(0,0,-1,1)},
 	// 오른쪽 (+Y)
-	{DirectX::XMFLOAT3(-0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(1,0,0,1)},
-	{DirectX::XMFLOAT3(-0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(1,0,0,1)},
-	{DirectX::XMFLOAT3(0.5f,  0.5f,  0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(1,0,0,1)},
-	{DirectX::XMFLOAT3(0.5f,  0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,1,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(1,0,0,1)},
+	{Float3(-0.5f,  0.5f, -0.5f), Float4(0,0,1,1), Float3(0,1,0), Float2(0,1),Float4(1,0,0,1)},
+	{Float3(-0.5f,  0.5f,  0.5f), Float4(0,0,1,1), Float3(0,1,0), Float2(0,0),Float4(1,0,0,1)},
+	{Float3(0.5f,  0.5f,  0.5f),  Float4(0,0,1,1), Float3(0,1,0), Float2(1,0),Float4(1,0,0,1)},
+	{Float3(0.5f,  0.5f, -0.5f),  Float4(0,0,1,1), Float3(0,1,0), Float2(1,1),Float4(1,0,0,1)},
 	// 왼쪽 (-Y)
-	{DirectX::XMFLOAT3(-0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,-1,0), DirectX::XMFLOAT2(1,1),DirectX::XMFLOAT4(-1,0,1,1)},
-	{DirectX::XMFLOAT3(-0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,-1,0), DirectX::XMFLOAT2(0,1),DirectX::XMFLOAT4(-1,0,1,1)},
-	{DirectX::XMFLOAT3(0.5f, -0.5f, -0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,-1,0), DirectX::XMFLOAT2(0,0),DirectX::XMFLOAT4(-1,0,1,1)},
-	{DirectX::XMFLOAT3(0.5f, -0.5f,  0.5f), DirectX::XMFLOAT4(0,0,1,1), DirectX::XMFLOAT3(0,-1,0), DirectX::XMFLOAT2(1,0),DirectX::XMFLOAT4(-1,0,1,1)},
+	{Float3(-0.5f, -0.5f,  0.5f), Float4(0,0,1,1), Float3(0,-1,0), Float2(1,1),Float4(-1,0,1,1)},
+	{Float3(-0.5f, -0.5f, -0.5f), Float4(0,0,1,1), Float3(0,-1,0), Float2(0,1),Float4(-1,0,1,1)},
+	{Float3(0.5f, -0.5f, -0.5f),  Float4(0,0,1,1), Float3(0,-1,0), Float2(0,0),Float4(-1,0,1,1)},
+	{Float3(0.5f, -0.5f,  0.5f),  Float4(0,0,1,1), Float3(0,-1,0), Float2(1,0),Float4(-1,0,1,1)},
 };
 
 WORD indices[] = {
@@ -107,6 +131,10 @@ WORD indices[] = {
 	16,17,18, 16,18,19, // Top
 	20,21,22, 20,22,23  // Bottom
 };
+
+std::vector<SimpleVertex> SpereVertices;
+
+std::vector<WORD> SpereIndices;
 
 // Misc
 float g_fRotaionAngle = 0.0f;
@@ -147,6 +175,180 @@ IDXGIAdapter* GetBestAdapter()
 
 	pFactory->Release();
 	return pBestAdapter;
+}
+
+bool CreateSphere(std::vector<SimpleVertex>* outVertices, std::vector<WORD>* outIndices, float radius = 0.5f)
+{
+	if (nullptr == outVertices || nullptr == outIndices)
+	{
+		return false;
+	}
+
+	const int SPHERE_STACKS = 20;
+	const int SPHERE_SLICES = 20;
+
+	for (int stack = 0; stack <= SPHERE_STACKS; ++stack)
+	{
+		float phi = MATH::PI * stack / SPHERE_STACKS; // 0 ~ PI
+		float z = cosf(phi);
+		float r = sinf(phi);
+
+		for (int slice = 0; slice <= SPHERE_SLICES; ++slice)
+		{
+			float theta = 2.0f * MATH::PI * slice / SPHERE_SLICES; // 0 ~ 2PI
+			float x = r * cosf(theta);
+			float y = r * sinf(theta);
+
+			Float3 pos = Float3(x * radius, y * radius, z * radius);
+			Float3 normal = Float3(x, y, z);
+			Float4 color = Float4(
+				0.5f + 0.5f * x,
+				0.5f + 0.5f * y,
+				0.5f + 0.5f * z,
+				1.0f
+			);
+
+			float u = (float)slice / SPHERE_SLICES;
+			float v = (float)stack / SPHERE_STACKS;
+
+			Float2 uv = Float2(u, v);
+			outVertices->push_back({ pos, color, normal, uv });
+		}
+	}
+
+	for (int stack = 0; stack < SPHERE_STACKS; ++stack)
+	{
+		for (int slice = 0; slice < SPHERE_SLICES; ++slice)
+		{
+			int first = (stack * (SPHERE_SLICES + 1)) + slice;
+			int second = first + SPHERE_SLICES + 1;
+
+			// 삼각형 1
+			outIndices->push_back((WORD)first);
+			outIndices->push_back((WORD)second);
+			outIndices->push_back((WORD)(first + 1));
+
+			// 삼각형 2
+			outIndices->push_back((WORD)second);
+			outIndices->push_back((WORD)(second + 1));
+			outIndices->push_back((WORD)(first + 1));
+		}
+	}
+
+	std::vector<Float3> tan1(outVertices->size(), Float3(0, 0, 0));
+	std::vector<Float3> tan2(outVertices->size(), Float3(0, 0, 0));
+
+	for (size_t n = 0; n < outIndices->size(); n += 3)
+	{
+		WORD i0 = (*outIndices)[n];
+		WORD i1 = (*outIndices)[n + 1];
+		WORD i2 = (*outIndices)[n + 2];
+
+		const Float3& p0 = (*outVertices)[i0].position;
+		const Float3& p1 = (*outVertices)[i1].position;
+		const Float3& p2 = (*outVertices)[i2].position;
+
+		const Float2& uv0 = (*outVertices)[i0].UV;
+		const Float2& uv1 = (*outVertices)[i1].UV;
+		const Float2& uv2 = (*outVertices)[i2].UV;
+
+		//DirectX::XMVECTOR v0 = p0.dxVector;
+		//DirectX::XMVECTOR v1 = p1.dxVector;
+		//DirectX::XMVECTOR v2 = p2.dxVector;
+
+		//DirectX::XMVECTOR uvv0 = uv0.dxVector;
+		//DirectX::XMVECTOR uvv1 = uv1.dxVector;
+		//DirectX::XMVECTOR uvv2 = uv2.dxVector;
+
+		float x1 = p1.X - p0.X;
+		float y1 = p1.Y - p0.Y;
+		float z1 = p1.Z - p0.Z;
+
+		float x2 = p2.X - p0.X;
+		float y2 = p2.Y - p0.Y;
+		float z2 = p2.Z - p0.Z;
+
+		float s1 = uv1.X - uv0.X;
+		float t1 = uv1.Y - uv0.Y;
+
+		float s2 = uv2.X - uv0.X;
+		float t2 = uv2.Y - uv0.Y;
+
+		float r = (s1 * t2 - s2 * t1);
+		if (fabs(r) < 1e-6f)
+		{
+			r = 1.0f;
+		}
+
+		float invR = 1.0f / r;
+
+		Float3 sdir(
+			(t2 * x1 - t1 * x2) * invR,
+			(t2 * y1 - t1 * y2) * invR,
+			(t2 * z1 - t1 * z2) * invR
+		);
+
+		Float3 tdir(
+			(s1 * x2 - s2 * x1) * invR,
+			(s1 * y2 - s2 * y1) * invR,
+			(s1 * z2 - s2 * z1) * invR
+		);
+
+		tan1[i0].X += sdir.X;
+		tan1[i0].Y += sdir.Y;
+		tan1[i0].Z += sdir.Z;
+
+		tan1[i1].X += sdir.X;
+		tan1[i1].Y += sdir.Y;
+		tan1[i1].Z += sdir.Z;
+
+		tan1[i2].X += sdir.X;
+		tan1[i2].Y += sdir.Y;
+		tan1[i2].Z += sdir.Z;
+
+		tan2[i0].X += tdir.X;
+		tan2[i0].Y += tdir.Y;
+		tan2[i0].Z += tdir.Z;
+
+		tan2[i1].X += tdir.X;
+		tan2[i1].Y += tdir.Y;
+		tan2[i1].Z += tdir.Z;
+
+		tan2[i2].X += tdir.X;
+		tan2[i2].Y += tdir.Y;
+		tan2[i2].Z += tdir.Z;
+	}
+
+	for (size_t n = 0; n < outVertices->size(); ++n)
+	{
+		const Float3& normal = (*outVertices)[n].normal;
+		const Float3& tangent = tan1[n];
+		const Float3& tangent2 = tan2[n];
+
+		float dotResult = 0.0f;
+		VectorDot(dotResult, normal, tangent);
+
+		Float3 scaleResult;
+		VectorScale(scaleResult, normal, dotResult);
+
+		Float3 subResult;
+		VectorSub(subResult, tangent, scaleResult);
+
+		Float3  finalTangent;
+		VectorNormalize(finalTangent, subResult);
+
+		Float3 crossResult;
+		VectorCross(crossResult, normal, tangent);
+
+		float dotResult2 = 0.0f;
+		VectorDot(dotResult2, crossResult, tangent2);
+
+		float handedness = (dotResult2 < 0.0f) ? -1.0f : 1.0f;
+
+		(*outVertices)[n].tangent = Float4(finalTangent.X, finalTangent.Y, finalTangent.Z, handedness);
+
+	}
+	return true;
 }
 
 HRESULT InitDeviceAndSwapChain(HWND hWnd, IDXGIAdapter* pBestAdapter)
@@ -280,13 +482,13 @@ HRESULT InitVertexBuffer()
 	D3D11_BUFFER_DESC desc;
 	memset(&desc, 0x00, sizeof(D3D11_BUFFER_DESC));
 	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = sizeof(vertices);
+	desc.ByteWidth = sizeof(SimpleVertex) * SpereVertices.size();
 	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	desc.CPUAccessFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA InitData;
 	memset(&InitData, 0x00, sizeof(D3D11_SUBRESOURCE_DATA));
-	InitData.pSysMem = vertices;
+	InitData.pSysMem = SpereVertices.data();
 
 	HRESULT hr = g_pd3dDevice->CreateBuffer(&desc, &InitData, &g_pVertexBuffer);
 	if (FAILED(hr))
@@ -302,13 +504,15 @@ HRESULT InitIndexBuffer()
 	D3D11_BUFFER_DESC desc;
 	memset(&desc, 0x00, sizeof(D3D11_BUFFER_DESC));
 	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = sizeof(indices);
+	//desc.ByteWidth = sizeof(indices);
+	desc.ByteWidth = sizeof(WORD) * SpereIndices.size();
 	desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	desc.CPUAccessFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA InitData;
 	memset(&InitData, 0x00, sizeof(D3D11_SUBRESOURCE_DATA));
-	InitData.pSysMem = indices;
+	//InitData.pSysMem = indices;
+	InitData.pSysMem = SpereIndices.data();
 
 	HRESULT hr = g_pd3dDevice->CreateBuffer(&desc, &InitData, &g_pIndexBuffer);
 	if (FAILED(hr))
@@ -319,16 +523,41 @@ HRESULT InitIndexBuffer()
 	return S_OK;
 }
 
-HRESULT InitConstantBuffer()
+//HRESULT InitConstantBuffer()
+//{
+//	D3D11_BUFFER_DESC desc;
+//	memset(&desc, 0x00, sizeof(D3D11_BUFFER_DESC));
+//	desc.Usage = D3D11_USAGE_DEFAULT;
+//	desc.ByteWidth = sizeof(ConstantBuffer);
+//	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+//	desc.CPUAccessFlags = 0;
+//
+//	HRESULT hr = g_pd3dDevice->CreateBuffer(&desc, nullptr, &g_pConstantBuffer);
+//	if (FAILED(hr))
+//	{
+//		DEBUG_BREAK();
+//		return hr;
+//	}
+//
+//	return S_OK;
+//}
+
+HRESULT InitConstantBuffer(UINT byteWidth, ID3D11Buffer** constantBuffer)
 {
+	if (nullptr != *constantBuffer)
+	{
+		(*constantBuffer)->Release();
+		(*constantBuffer) = nullptr;
+	}
+	
 	D3D11_BUFFER_DESC desc;
 	memset(&desc, 0x00, sizeof(D3D11_BUFFER_DESC));
 	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = sizeof(ConstantBuffer);
+	desc.ByteWidth = byteWidth;
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	desc.CPUAccessFlags = 0;
 
-	HRESULT hr = g_pd3dDevice->CreateBuffer(&desc, nullptr, &g_pConstantBuffer);
+	HRESULT hr = g_pd3dDevice->CreateBuffer(&desc, nullptr, constantBuffer);
 	if (FAILED(hr))
 	{
 		DEBUG_BREAK();
@@ -337,6 +566,7 @@ HRESULT InitConstantBuffer()
 
 	return S_OK;
 }
+
 
 HRESULT InitInputLayout(ID3DBlob* pVSBlob)
 {
@@ -600,7 +830,6 @@ HRESULT InitAlphaBlendState()
 	return hr;
 }
 
-// **Change**
 HRESULT InitRasterizerState()
 {
 	D3D11_RASTERIZER_DESC rasDesc = {};
@@ -640,31 +869,60 @@ void UpdateConstantResource(const Transform& worldTransform)
 	// 월드, 뷰, 프로젝션 행렬 설정
 	// world는 오브젝트마다 고유의 값이며, 각각의 오브젝트의 Transform 을 적용해야함.
 	DirectX::XMMATRIX world = scale * rotation * position;
-	DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(DirectX::XMVectorSet(-5.0f, -1.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
+	DirectX::XMMATRIX view = DirectX::XMMatrixLookToLH(DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f), DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
 	DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4, ResolutionWidth / ResolutionHeigh, 0.01f, 100.0f);
+	DirectX::XMMATRIX worldInvTranspose = XMMatrixTranspose(XMMatrixInverse(nullptr, world));
 
-	// Spot Light
-	DirectX::XMFLOAT4 lightColor = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	DirectX::XMFLOAT4 ambientColor = DirectX::XMFLOAT4(0.3f, 0.3f, 0.3f, 0.3f);
-	DirectX::XMFLOAT3 spotPosition = DirectX::XMFLOAT3(-2.0f, -1.0f, 0.0f);
-	DirectX::XMFLOAT3 spotDirection = DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f);
 
-	float spotRange = 20.0f;
-	float spotAngle = cosf(DirectX::XMConvertToRadians(20.0f));
+	CBTransform cbTransform;
+	cbTransform.world = DirectX::XMMatrixTranspose(world);
+	cbTransform.view = DirectX::XMMatrixTranspose(view);
+	cbTransform.projection = DirectX::XMMatrixTranspose(projection);
+	cbTransform.worldInvTranspose = XMMatrixTranspose(worldInvTranspose);
 
-	// 상수 버퍼 업데이트
-	ConstantBuffer cb;
-	cb.world = DirectX::XMMatrixTranspose(world);
-	cb.view = DirectX::XMMatrixTranspose(view);
-	cb.projection = DirectX::XMMatrixTranspose(projection);
-	cb.lightColor = lightColor;
-	cb.ambientColor = ambientColor;
-	cb.spotPosition = spotPosition;
-	cb.spotDirection = spotDirection;
-	cb.spotRange = spotRange;
-	cb.spotAngle = spotAngle;
+	// 일반 빛 색상.
+	CBLight cbLight;
+	cbLight.lightAmbient = { 1.0f, 0.1f, 0.1f, 1.0f }; // 주변광 색상 (조명 없는 부분)
+	cbLight.lightDiffuse = { 1.0f, 1.0f, 1.0f, 1.0f }; // 확산광 색상
+	cbLight.lightSpecular = { 1.0f, 1.0f, 1.0f, 1.0f }; // 하이라이트 색상
+	cbLight.lightDir = { 0.0f, 0.0f, -1.0f };       // 광원 방향 (정규화)
 
-	g_pImmediateContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb, 0, 0);
+	// 따뜻한 햇빛
+	//CBLight cbLight;
+	//cbLight.lightAmbient = { 0.2f, 0.18f, 0.15f, 1.0f }; // 약간 노란 주변광
+	//cbLight.lightDiffuse = { 1.0f, 0.95f, 0.9f, 1.0f };   // 따뜻한 햇빛
+	//cbLight.lightSpecular = { 1.0f, 0.95f, 0.9f, 1.0f };   // 하이라이트 동일
+	//cbLight.lightDir = { 0.0f, 0.0f, -1.0f };
+	
+	// 비금속 (돌, 플라스틱)
+	CBMaterial cbMaterial;
+	cbMaterial.materialDiffuse = { 0.8f, 0.2f, 0.2f, 1.0f }; // 밝은 빨강
+	cbMaterial.materialSpecular = { 1.0f, 1.0f, 1.0f, 1.0f }; // 흰색 하이라이트
+	cbMaterial.materialAmbient = { 0.2f, 0.05f, 0.05f, 1.0f }; // 어두운 빨강
+	cbMaterial.materialEmissive = { 0.0f, 0.0f, 0.0f, 1.0f }; // 발광 없음
+	cbMaterial.shininess = 16.0f;
+	
+	//금속(Gold, Copper, Iron 등)
+	//CBMaterial cbMaterial;
+	//cbMaterial.materialDiffuse = { 1.0f, 0.8f, 0.0f, 1.0f }; // 거의 없음
+	//cbMaterial.materialSpecular = { 1.0f, 0.8f, 0.0f, 1.0f }; // 금빛 반사
+	//cbMaterial.materialAmbient = { 0.0f, 0.0f, 0.0f, 1.0f }; // 그림자 속 거의 없음
+	//cbMaterial.materialEmissive = { 0.0f, 0.0f, 0.0f, 1.0f }; // 발광 없음
+	//cbMaterial.shininess = 64.0f;
+
+	//강철 (Steel)
+	//CBMaterial cbMaterial;
+	//cbMaterial.materialDiffuse = { 0.3f, 0.3f, 0.3f, 1.0f }; // 어두운 회색
+	//cbMaterial.materialSpecular = { 0.8f, 0.8f, 0.8f, 1.0f }; // 밝은 하이라이트
+	//cbMaterial.materialAmbient = { 0.3f, 0.3f, 0.3f, 1.0f }; // 그림자
+	//cbMaterial.materialEmissive = { 0.0f, 0.0f, 0.0f, 1.0f }; // 발광 없음
+	//cbMaterial.shininess = 128.0f;
+
+
+
+	g_pImmediateContext->UpdateSubresource(g_pCBTransform, 0, nullptr, &cbTransform, 0, 0);
+	g_pImmediateContext->UpdateSubresource(g_pCBLight, 0, nullptr, &cbLight, 0, 0);
+	g_pImmediateContext->UpdateSubresource(g_pCBMaterial, 0, nullptr, &cbMaterial, 0, 0);
 }
 
 void IASetting()
@@ -688,10 +946,9 @@ void VSSetting()
 
 	// StartSlot : Buffer Slot
 	// NumBuffers : Buffer가 2개 이상인 배열인 경우 설정.
-	g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
+	g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pCBTransform);
 }
 
-// **Change**
 void RSSetting()
 {
 	// 뷰 포트 설정
@@ -712,7 +969,11 @@ void PSSetting()
 {
 	g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
 
-	g_pImmediateContext->PSSetConstantBuffers(0, 1, &g_pConstantBuffer);
+	//g_pImmediateContext->PSSetConstantBuffers(0, 1, &g_pCBTransform);
+
+	g_pImmediateContext->PSSetConstantBuffers(0, 1, &g_pCBTransform);
+	g_pImmediateContext->PSSetConstantBuffers(1, 1, &g_pCBLight);
+	g_pImmediateContext->PSSetConstantBuffers(2, 1, &g_pCBMaterial);
 
 	g_pImmediateContext->PSSetShaderResources(0, 1, &g_pTextureResourceView);
 
@@ -739,13 +1000,17 @@ void OMSetting()
 
 void BeginPlay()
 {
+	CreateSphere(&SpereVertices, &SpereIndices, 0.5f);
+
 	InitDepthStencilBuffer();
 
 	InitVertexBuffer();
 
 	InitIndexBuffer();
 
-	InitConstantBuffer();
+	InitConstantBuffer(sizeof(CBTransform), &g_pCBTransform);
+	InitConstantBuffer(sizeof(CBLight), &g_pCBLight);
+	InitConstantBuffer(sizeof(CBMaterial), &g_pCBMaterial);
 
 	InitVertexShader();
 
@@ -782,16 +1047,17 @@ void Render()
 	Transform tf1;
 	tf1.SetScale({ 1.0f, 1.0f, 1.0f });
 	tf1.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
-	tf1.SetPosition({ 0.0f, 1.0f, 0.0f });
+	tf1.SetPosition({ 5.0f, 0.0f, 0.0f });
 	UpdateConstantResource(tf1);
-	g_pImmediateContext->DrawIndexed(36, 0, 0);
+	
+	g_pImmediateContext->DrawIndexed(SpereIndices.size(), 0, 0);
 
-	Transform tf2;
-	tf2.SetScale({ 1.0f, 1.0f, 1.0f });
-	tf2.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
-	tf2.SetPosition({ 0.0f, -1.0f, 0.0f });
-	UpdateConstantResource(tf2);
-	g_pImmediateContext->DrawIndexed(36, 0, 0);
+	//Transform tf2;
+	//tf2.SetScale({ 1.0f, 1.0f, 1.0f });
+	//tf2.SetRotation({ 0.0f, 0.0f, g_fRotaionAngle });
+	//tf2.SetPosition({ 0.0f, 0.0f, 0.0f });
+	//UpdateConstantResource(tf2);
+	//g_pImmediateContext->DrawIndexed(SpereIndices.size(), 0, 0);
 }
 
 void RenderEnd()
@@ -808,7 +1074,9 @@ void Cleanup()
 	if (g_pTextureResourceView) g_pTextureResourceView->Release();
 	if (g_pPixelShader) g_pPixelShader->Release();
 	if (g_pVertexShader) g_pVertexShader->Release();
-	if (g_pConstantBuffer) g_pConstantBuffer->Release();
+	if (g_pCBTransform) g_pCBTransform->Release();
+	if (g_pCBLight) g_pCBLight->Release();
+	if (g_pCBMaterial) g_pCBMaterial->Release();
 	if (g_pIndexBuffer) g_pIndexBuffer->Release();
 	if (g_pVertexBuffer) g_pVertexBuffer->Release();
 	if (g_pInputLayout) g_pInputLayout->Release();
